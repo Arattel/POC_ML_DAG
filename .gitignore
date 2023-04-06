@@ -1,0 +1,4 @@
+*.pkl
+*.csv
+logs/
+*/__pycache__
