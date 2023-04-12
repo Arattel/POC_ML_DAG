@@ -1,3 +1,8 @@
 
 FROM apache/airflow:2.5.3
-RUN pip install --no-cache-dir scikit-learn==1.0.2
+ENV PIP_USER=false
+RUN python3 -m venv .venv
+COPY  requirements.txt .
+RUN /opt/airflow/.venv/bin/pip install -r requirements.txt
+ENV PIP_USER=true
+

@@ -32,7 +32,7 @@ import pendulum
 from airflow import DAG
 
 # Operators; we need this to operate!
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import ExternalPythonOperator
 
 # [END import_module]
 
@@ -42,7 +42,7 @@ with DAG(
     # [START default_args]
     # These args will get passed on to each operator
     # You can override them on a per-task basis during operator initialization
-    default_args={"retries": 2},
+    default_args={"retries": 2, 'provide_context': True},
     # [END default_args]
     description="DAG tutorial",
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),
@@ -55,32 +55,26 @@ with DAG(
     # [END documentation]
 
     # [START extract_function]
-    def load(**kwargs):
-        ti = kwargs["ti"]
-        import pickle as pkl
-        with open('./dags/models/model.pkl', 'rb') as f:
-            m = pkl.load(f)
-        ti.xcom_push("model", m)
 
     # [END extract_function]
 
     # [START transform_function]
     def predict(**kwargs):
         from sklearn.datasets import load_iris
+        import pickle as pkl
+        import pandas as pd
 
-        ti = kwargs["ti"]
-        model = ti.xcom_pull(task_ids="load", key="model")
+        
+        with open('./dags/models/model.pkl', 'rb') as f:
+            model = pkl.load(f)
+
         X = load_iris().data
         pred = model.predict(X)
-        ti.xcom_push("prediction", pred)
-
-
-    def save(**kwargs):
-        import pandas as pd
-        ti = kwargs["ti"]
-        prediction = ti.xcom_pull(task_ids="predict", key="prediction")
-        df = pd.DataFrame({'label': prediction})
+        df = pd.DataFrame({'label': pred})
         df.to_csv('./dags/outputs/prediction.csv')
+
+
+       
 
     # [END transform_function]
 
@@ -88,21 +82,23 @@ with DAG(
     # [END load_function]
 
     # [START main_flow]
-    extract_task = PythonOperator(
-        task_id="load",
-        python_callable=load,
-    )
-    extract_task.doc_md = dedent(
-        """\
-    #### Extract task
-    A simple Extract task to get data ready for the rest of the data pipeline.
-    In this case, getting data is simulated by reading from a hardcoded JSON string.
-    This data is then put into xcom, so that it can be processed by the next task.
-    """
-    )
+    # extract_task = ExternalPythonOperator(
+    #     task_id="load",
+    #     python='/opt/airflow/.venv/bin/python3',
+    #     python_callable=load,
+    # )
+    # extract_task.doc_md = dedent(
+    #     """\
+    # #### Extract task
+    # A simple Extract task to get data ready for the rest of the data pipeline.
+    # In this case, getting data is simulated by reading from a hardcoded JSON string.
+    # This data is then put into xcom, so that it can be processed by the next task.
+    # """
+    # )
 
-    transform_task = PythonOperator(
+    transform_task = ExternalPythonOperator(
         task_id="predict",
+        python='/opt/airflow/.venv/bin/python3',
         python_callable=predict,
     )
     transform_task.doc_md = dedent(
@@ -114,18 +110,19 @@ with DAG(
     """
     )
 
-    save_task = PythonOperator(
-        task_id="save",
-        python_callable=save,
-    )
-    save_task.doc_md = dedent(
-        """\
-    #### Save task
-    Saves our prediction into a .csv file
-    """
-    )
+    # save_task = ExternalPythonOperator(
+    #     task_id="save",
+    #     python='/opt/airflow/.venv/bin/python3',
+    #     python_callable=save,
+    # )
+    # save_task.doc_md = dedent(
+    #     """\
+    # #### Save task
+    # Saves our prediction into a .csv file
+    # """
+    # )
 
-    extract_task >> transform_task >> save_task
+    transform_task 
 
 # [END main_flow]
 
